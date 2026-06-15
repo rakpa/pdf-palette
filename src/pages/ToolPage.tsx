@@ -72,7 +72,7 @@ const featureConfig: Record<
     maxFiles: 1,
     minFiles: 1,
     cta: "Compress PDF",
-    hint: "Shrink your PDF with iLovePDF — uploads go directly to their servers, same as ilovepdf.com.",
+    hint: "Shrink your PDF using Ghostscript — runs entirely in your browser, no upload.",
   },
   watermark: {
     accept: { "application/pdf": [".pdf"] },
@@ -347,7 +347,7 @@ const ToolPage = () => {
               )}
             </div>
 
-            <PrivacyNote localOnly={tool.feature !== "compress"} />
+            <PrivacyNote />
           </div>
         )}
       </div>
@@ -405,9 +405,9 @@ const CompressOptions = ({
   onChange: (v: CompressionLevel) => void;
 }) => {
   const options: { id: CompressionLevel; label: string; desc: string }[] = [
-    { id: "low", label: "Low", desc: "Best quality" },
-    { id: "recommended", label: "Recommended", desc: "Best balance" },
-    { id: "extreme", label: "Extreme", desc: "Smallest file" },
+    { id: "low", label: "Low", desc: "300 DPI — best quality" },
+    { id: "recommended", label: "Recommended", desc: "150 DPI — best balance" },
+    { id: "extreme", label: "Extreme", desc: "72 DPI — smallest file" },
   ];
   return (
     <div className="space-y-3">
@@ -437,20 +437,18 @@ const CompressOptions = ({
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Uses iLovePDF&apos;s compression engine (same as ilovepdf.com). Recommended
-        gives the best size-to-quality ratio. Extreme shrinks the most but may
-        reduce image quality on scanned PDFs.
+        Powered by Ghostscript in your browser — the same engine many PDF tools use.
+        Recommended balances size and quality. Extreme targets the smallest file.
+        First run downloads the engine (~15 MB); later compressions are faster.
       </p>
     </div>
   );
 };
 
-const PrivacyNote = ({ localOnly = true }: { localOnly?: boolean }) => (
+const PrivacyNote = () => (
   <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
     <ShieldCheck className="h-4 w-4 text-tool-green" />
-    {localOnly
-      ? "Your files are processed locally and never uploaded to a server."
-      : "Your file uploads directly to iLovePDF for compression (same as ilovepdf.com) and is deleted after processing."}
+    Your files are processed locally and never uploaded to a server.
   </div>
 );
 

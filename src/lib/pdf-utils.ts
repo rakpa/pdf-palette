@@ -1,5 +1,11 @@
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { saveAs } from "file-saver";
+import {
+  compressWithGhostscript,
+} from "./ghostscript-compress";
+import type { CompressionLevel } from "./compression-types";
+
+export type { CompressionLevel };
 
 export interface ProcessingResult {
   success: boolean;
@@ -141,41 +147,37 @@ export async function rotatePDF(
   }
 }
 
-import {
-  compressWithILovePDF,
-  type CompressionLevel,
-} from "./ilovepdf-compress";
-
-export type { CompressionLevel };
-
-// Compress PDF via iLovePDF API — file uploads directly to iLovePDF servers.
+// Compress PDF in-browser via Ghostscript WASM (no external API).
 export async function compressPDF(
   file: File,
   level: CompressionLevel = "recommended",
   onProgress?: (progress: number) => void
 ): Promise<ProcessingResult> {
   try {
-    const { blob, inputSize, outputSize } = await compressWithILovePDF(
+    const { blob, inputSize, outputSize } = await compressWithGhostscript(
       file,
       level,
       onProgress
     );
 
-    const reductionPct = ((inputSize - outputSize) / inputSize) * 100;
+    const useOriginal = outputSize >= inputSize;
+    const finalBlob = useOriginal ? file : blob;
+    const finalSize = useOriginal ? inputSize : outputSize;
+    const reductionPct = ((inputSize - finalSize) / inputSize) * 100;
 
     let message: string;
     if (reductionPct < 0.5) {
-      message = `This PDF is already well-optimized — result is ${formatFileSize(outputSize)}.`;
+      message = `This PDF is already well-optimized — kept at ${formatFileSize(finalSize)}.`;
     } else {
       message = `Compressed! Reduced by ${reductionPct.toFixed(1)}% (${formatFileSize(
         inputSize
-      )} → ${formatFileSize(outputSize)})`;
+      )} → ${formatFileSize(finalSize)})`;
     }
 
     return {
       success: true,
       message,
-      blob,
+      blob: finalBlob,
       filename: `compressed_${file.name}`,
     };
   } catch (error) {
