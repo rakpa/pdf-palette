@@ -14,6 +14,7 @@ import {
 
 import { getToolByRoute, ToolFeature } from "@/lib/tools";
 import {
+  CompressionLevel,
   ProcessingResult,
   addWatermark,
   compressPDF,
@@ -71,7 +72,7 @@ const featureConfig: Record<
     maxFiles: 1,
     minFiles: 1,
     cta: "Compress PDF",
-    hint: "We strip metadata and re-pack the file — entirely in your browser.",
+    hint: "Shrink your PDF — image-heavy and scanned files compress the most. Runs entirely in your browser.",
   },
   watermark: {
     accept: { "application/pdf": [".pdf"] },
@@ -118,6 +119,8 @@ const ToolPage = () => {
   const [ranges, setRanges] = useState("");
   const [watermarkText, setWatermarkText] = useState("CONFIDENTIAL");
   const [opacity, setOpacity] = useState(0.3);
+  const [compressionLevel, setCompressionLevel] =
+    useState<CompressionLevel>("recommended");
 
   const config = useMemo(
     () => (tool?.feature ? featureConfig[tool.feature] : undefined),
@@ -155,7 +158,7 @@ const ToolPage = () => {
           res = await rotatePDF(inputFiles[0], rotation, undefined, onProgress);
           break;
         case "compress":
-          res = await compressPDF(inputFiles[0], onProgress);
+          res = await compressPDF(inputFiles[0], compressionLevel, onProgress);
           break;
         case "watermark":
           res = await addWatermark(
@@ -279,9 +282,13 @@ const ToolPage = () => {
                     </div>
                   </div>
                 )}
-                {(tool.feature === "merge" ||
-                  tool.feature === "compress" ||
-                  tool.feature === "jpg-to-pdf") && (
+                {tool.feature === "compress" && (
+                  <CompressOptions
+                    value={compressionLevel}
+                    onChange={setCompressionLevel}
+                  />
+                )}
+                {(tool.feature === "merge" || tool.feature === "jpg-to-pdf") && (
                   <p className="text-sm text-muted-foreground">
                     Ready when you are — hit <span className="font-medium text-foreground">{config.cta}</span> below.
                   </p>
@@ -389,6 +396,54 @@ const RotateOptions = ({
     </div>
   </div>
 );
+
+const CompressOptions = ({
+  value,
+  onChange,
+}: {
+  value: CompressionLevel;
+  onChange: (v: CompressionLevel) => void;
+}) => {
+  const options: { id: CompressionLevel; label: string; desc: string }[] = [
+    { id: "high", label: "Less", desc: "Best quality" },
+    { id: "recommended", label: "Recommended", desc: "Good balance" },
+    { id: "low", label: "More", desc: "Smallest size" },
+  ];
+  return (
+    <div className="space-y-3">
+      <Label>Compression level</Label>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={cn(
+              "rounded-xl border px-3 py-3 text-center transition-all",
+              value === o.id
+                ? "border-primary bg-primary/10"
+                : "border-border hover:border-primary/40"
+            )}
+          >
+            <div
+              className={cn(
+                "text-sm font-medium",
+                value === o.id ? "text-primary" : "text-foreground"
+              )}
+            >
+              {o.label}
+            </div>
+            <div className="text-xs text-muted-foreground">{o.desc}</div>
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Stronger compression re-encodes pages as images, which shrinks scanned or
+        image-heavy PDFs the most. We always keep the smaller of the original and
+        the compressed result.
+      </p>
+    </div>
+  );
+};
 
 const PrivacyNote = () => (
   <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
