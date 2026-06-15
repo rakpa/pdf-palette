@@ -1,10 +1,5 @@
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { saveAs } from "file-saver";
-import * as pdfjsLib from "pdfjs-dist";
-// Vite resolves this to a hashed URL for the PDF.js web worker.
-import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorker;
 
 export interface ProcessingResult {
   success: boolean;
@@ -146,135 +141,35 @@ export async function rotatePDF(
   }
 }
 
-export type CompressionLevel = "low" | "recommended" | "high";
+import {
+  compressWithILovePDF,
+  type CompressionLevel,
+} from "./ilovepdf-compress";
 
-// scale = target render resolution (≈ DPI/72), quality = JPEG quality,
-// maxSide = hard cap on the longest rendered side in pixels so we always
-// DOWNSAMPLE (never upscale, which would inflate the file).
-// "high" keeps the most detail (least shrink); "low" compresses the hardest.
-const COMPRESSION_SETTINGS: Record<
-  CompressionLevel,
-  { scale: number; quality: number; maxSide: number }
-> = {
-  high: { scale: 2.0, quality: 0.82, maxSide: 2400 },
-  recommended: { scale: 1.5, quality: 0.72, maxSide: 1700 },
-  low: { scale: 1.0, quality: 0.5, maxSide: 1240 },
-};
+export type { CompressionLevel };
 
-function dataUrlToBytes(dataUrl: string): Uint8Array {
-  const base64 = dataUrl.split(",")[1];
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-// Strip metadata and re-pack object streams. Cheap, lossless, but only helps a little.
-async function leanRebuild(arrayBuffer: ArrayBuffer): Promise<Uint8Array> {
-  const pdf = await PDFDocument.load(arrayBuffer);
-  pdf.setTitle("");
-  pdf.setAuthor("");
-  pdf.setSubject("");
-  pdf.setKeywords([]);
-  pdf.setProducer("");
-  pdf.setCreator("");
-  return pdf.save({ useObjectStreams: true });
-}
-
-// Render every page and re-encode it as JPEG, then rebuild the PDF from those images.
-// This is what actually shrinks image-heavy / scanned PDFs (the metadata pass can't).
-// Trade-off: text becomes a raster image (not selectable), so we only keep this result
-// when it's genuinely smaller than the lossless rebuild.
-async function rasterRebuild(
-  arrayBuffer: ArrayBuffer,
-  level: CompressionLevel,
-  onProgress?: (progress: number) => void
-): Promise<Uint8Array> {
-  const { scale, quality, maxSide } = COMPRESSION_SETTINGS[level];
-  // pdf.js detaches the buffer it's given, so hand it a copy.
-  const doc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-  const out = await PDFDocument.create();
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const native = page.getViewport({ scale: 1 });
-    // Cap the render scale so the longest side never exceeds maxSide px — this
-    // guarantees we downsample high-DPI pages instead of upscaling them.
-    const longest = Math.max(native.width, native.height) * scale;
-    const renderScale = longest > maxSide ? scale * (maxSide / longest) : scale;
-    const viewport = page.getViewport({ scale: renderScale });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const ctx = canvas.getContext("2d")!;
-    // White background so transparent regions don't render black under JPEG.
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", quality));
-    const img = await out.embedJpg(jpeg);
-
-    // Keep the page at its real PDF dimensions (viewport at scale 1 = points).
-    const p = out.addPage([native.width, native.height]);
-    p.drawImage(img, { x: 0, y: 0, width: native.width, height: native.height });
-
-    onProgress?.(20 + (i / doc.numPages) * 70);
-  }
-
-  return out.save();
-}
-
-// Compress PDF — picks whichever approach yields the smallest file, and never
-// returns something larger than the original.
+// Compress PDF via iLovePDF API — file uploads directly to iLovePDF servers.
 export async function compressPDF(
   file: File,
   level: CompressionLevel = "recommended",
   onProgress?: (progress: number) => void
 ): Promise<ProcessingResult> {
   try {
-    onProgress?.(10);
-    const arrayBuffer = await file.arrayBuffer();
-    const originalBytes = new Uint8Array(arrayBuffer.slice(0));
+    const { blob, inputSize, outputSize } = await compressWithILovePDF(
+      file,
+      level,
+      onProgress
+    );
 
-    const lean = await leanRebuild(arrayBuffer.slice(0));
-    onProgress?.(20);
-
-    let raster: Uint8Array | null = null;
-    try {
-      raster = await rasterRebuild(arrayBuffer, level, onProgress);
-    } catch {
-      // If rendering fails (e.g. encrypted/odd PDF), fall back to the lossless rebuild.
-      raster = null;
-    }
-
-    onProgress?.(95);
-
-    // Choose the smallest candidate.
-    const candidates: { bytes: Uint8Array; rasterized: boolean }[] = [
-      { bytes: originalBytes, rasterized: false },
-      { bytes: lean, rasterized: false },
-    ];
-    if (raster) candidates.push({ bytes: raster, rasterized: true });
-    candidates.sort((a, b) => a.bytes.length - b.bytes.length);
-    const best = candidates[0];
-
-    const originalSize = file.size;
-    const compressedSize = best.bytes.length;
-    const reductionPct = ((originalSize - compressedSize) / originalSize) * 100;
-
-    onProgress?.(100);
-
-    const blob = new Blob([best.bytes], { type: "application/pdf" });
+    const reductionPct = ((inputSize - outputSize) / inputSize) * 100;
 
     let message: string;
-    if (best.bytes === originalBytes || reductionPct < 0.5) {
-      message = `This PDF is already well-optimized — kept at ${formatFileSize(compressedSize)}.`;
+    if (reductionPct < 0.5) {
+      message = `This PDF is already well-optimized — result is ${formatFileSize(outputSize)}.`;
     } else {
-      const note = best.rasterized ? " (pages re-encoded as images)" : "";
       message = `Compressed! Reduced by ${reductionPct.toFixed(1)}% (${formatFileSize(
-        originalSize
-      )} → ${formatFileSize(compressedSize)})${note}`;
+        inputSize
+      )} → ${formatFileSize(outputSize)})`;
     }
 
     return {

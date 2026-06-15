@@ -72,7 +72,7 @@ const featureConfig: Record<
     maxFiles: 1,
     minFiles: 1,
     cta: "Compress PDF",
-    hint: "Shrink your PDF — image-heavy and scanned files compress the most. Runs entirely in your browser.",
+    hint: "Shrink your PDF with iLovePDF — uploads go directly to their servers, same as ilovepdf.com.",
   },
   watermark: {
     accept: { "application/pdf": [".pdf"] },
@@ -347,7 +347,7 @@ const ToolPage = () => {
               )}
             </div>
 
-            <PrivacyNote />
+            <PrivacyNote localOnly={tool.feature !== "compress"} />
           </div>
         )}
       </div>
@@ -405,9 +405,9 @@ const CompressOptions = ({
   onChange: (v: CompressionLevel) => void;
 }) => {
   const options: { id: CompressionLevel; label: string; desc: string }[] = [
-    { id: "high", label: "Less", desc: "Best quality" },
-    { id: "recommended", label: "Recommended", desc: "Good balance" },
-    { id: "low", label: "More", desc: "Smallest size" },
+    { id: "low", label: "Low", desc: "Best quality" },
+    { id: "recommended", label: "Recommended", desc: "Best balance" },
+    { id: "extreme", label: "Extreme", desc: "Smallest file" },
   ];
   return (
     <div className="space-y-3">
@@ -437,18 +437,20 @@ const CompressOptions = ({
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Stronger compression re-encodes pages as images, which shrinks scanned or
-        image-heavy PDFs the most. We always keep the smaller of the original and
-        the compressed result.
+        Uses iLovePDF&apos;s compression engine (same as ilovepdf.com). Recommended
+        gives the best size-to-quality ratio. Extreme shrinks the most but may
+        reduce image quality on scanned PDFs.
       </p>
     </div>
   );
 };
 
-const PrivacyNote = () => (
+const PrivacyNote = ({ localOnly = true }: { localOnly?: boolean }) => (
   <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
     <ShieldCheck className="h-4 w-4 text-tool-green" />
-    Your files are processed locally and never uploaded to a server.
+    {localOnly
+      ? "Your files are processed locally and never uploaded to a server."
+      : "Your file uploads directly to iLovePDF for compression (same as ilovepdf.com) and is deleted after processing."}
   </div>
 );
 
