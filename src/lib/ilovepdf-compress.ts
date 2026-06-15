@@ -3,13 +3,48 @@ export type CompressionLevel = "low" | "recommended" | "extreme";
 
 const API_BASE = "https://api.ilovepdf.com/v1";
 
+function formatApiError(data: unknown, fallback: string): string {
+  if (data == null) return fallback;
+  if (typeof data === "string") return data;
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.error === "string") return obj.error;
+    if (obj.error && typeof obj.error === "object") {
+      const nested = obj.error as Record<string, unknown>;
+      if (typeof nested.message === "string") return nested.message;
+      if (typeof nested.type === "string") return nested.type;
+    }
+    try {
+      return JSON.stringify(data);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+async function readApiError(res: Response, fallback: string): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return fallback;
+    try {
+      return formatApiError(JSON.parse(text), fallback);
+    } catch {
+      return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+    }
+  } catch {
+    return fallback;
+  }
+}
+
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
 /** iLovePDF public key — safe to expose in the browser (per iLovePDF client-side auth docs). */
 function getPublicKey(): string {
-  const key = import.meta.env.VITE_ILOVEPDF_PUBLIC_KEY;
+  const key = import.meta.env.VITE_ILOVEPDF_PUBLIC_KEY?.trim();
   if (!key) {
     throw new Error(
       "VITE_ILOVEPDF_PUBLIC_KEY is not configured. Add it to your environment variables."
@@ -26,14 +61,10 @@ async function getApiToken(): Promise<string> {
   });
 
   if (!res.ok) {
-    let detail = `Could not authenticate with iLovePDF (${res.status})`;
-    try {
-      const payload = (await res.json()) as { error?: string; message?: string };
-      if (payload.error) detail = payload.error;
-      else if (payload.message) detail = payload.message;
-    } catch {
-      // ignore
-    }
+    const detail = await readApiError(
+      res,
+      `Could not authenticate with iLovePDF (${res.status})`
+    );
     throw new Error(detail);
   }
 
@@ -65,7 +96,11 @@ export async function compressWithILovePDF(
     headers: authHeaders(token),
   });
   if (!startRes.ok) {
-    throw new Error(`Failed to start compress task (${startRes.status})`);
+    const detail = await readApiError(
+      startRes,
+      `Failed to start compress task (${startRes.status})`
+    );
+    throw new Error(detail);
   }
 
   const { server, task } = (await startRes.json()) as { server?: string; task?: string };
@@ -82,8 +117,8 @@ export async function compressWithILovePDF(
     body: uploadForm,
   });
   if (!uploadRes.ok) {
-    const detail = await uploadRes.text();
-    throw new Error(`Upload failed (${uploadRes.status}): ${detail}`);
+    const detail = await readApiError(uploadRes, `Upload failed (${uploadRes.status})`);
+    throw new Error(detail);
   }
 
   const { server_filename: serverFilename } = (await uploadRes.json()) as {
@@ -106,8 +141,8 @@ export async function compressWithILovePDF(
     }),
   });
   if (!processRes.ok) {
-    const detail = await processRes.text();
-    throw new Error(`Compression failed (${processRes.status}): ${detail}`);
+    const detail = await readApiError(processRes, `Compression failed (${processRes.status})`);
+    throw new Error(detail);
   }
 
   const processData = (await processRes.json()) as ProcessResult;
@@ -124,7 +159,8 @@ export async function compressWithILovePDF(
     headers: authHeaders(token),
   });
   if (!downloadRes.ok) {
-    throw new Error(`Download failed (${downloadRes.status})`);
+    const detail = await readApiError(downloadRes, `Download failed (${downloadRes.status})`);
+    throw new Error(detail);
   }
 
   const blob = await downloadRes.blob();

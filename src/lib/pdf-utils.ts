@@ -179,9 +179,15 @@ export async function compressPDF(
       filename: `compressed_${file.name}`,
     };
   } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
     return {
       success: false,
-      message: `Error compressing PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
+      message: `Error compressing PDF: ${detail}`,
     };
   }
 }
