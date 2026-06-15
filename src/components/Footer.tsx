@@ -12,7 +12,7 @@ const Footer = () => {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
                 <FileText className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold text-foreground">PDFTools</span>
+              <span className="text-xl font-bold text-foreground">PDF Palette</span>
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
               Free online PDF tools for everyone. All processing happens in your
@@ -105,7 +105,7 @@ const Footer = () => {
         {/* Bottom */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} PDFTools. All rights reserved.
+            © {new Date().getFullYear()} PDF Palette. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <a

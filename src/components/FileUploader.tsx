@@ -11,6 +11,13 @@ export interface UploadedFile {
   preview?: string;
 }
 
+/** Human-readable size that doesn't collapse small files to "0.00 MB". */
+const formatSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+};
+
 interface FileUploaderProps {
   accept?: Record<string, string[]>;
   maxFiles?: number;
@@ -159,7 +166,7 @@ const FileUploader = ({
                     {uploadedFile.file.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {(uploadedFile.file.size / 1024 / 1024).toFixed(2)} MB
+                    {formatSize(uploadedFile.file.size)}
                   </p>
                 </div>
                 <Button

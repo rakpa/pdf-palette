@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { ArrowUpRight } from "lucide-react";
 import { PDFTool } from "@/lib/tools";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -27,22 +28,33 @@ const ToolCard = ({ tool, index }: ToolCardProps) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
       layout
     >
       <Link to={tool.route} className="group block h-full">
-        <div className="relative h-full rounded-2xl border border-border/50 bg-card p-6 shadow-card transition-all duration-300 hover:border-border hover:shadow-card-hover hover:-translate-y-1">
-          {/* New Badge */}
-          {tool.isNew && (
-            <Badge className="absolute right-4 top-4 bg-tool-green text-white">
-              New!
-            </Badge>
-          )}
+        <div className="relative h-full overflow-hidden rounded-2xl border border-border/50 bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card-hover">
+          {/* Hover gradient sheen */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+          {/* Badges */}
+          <div className="absolute right-4 top-4 flex gap-2">
+            {tool.comingSoon ? (
+              <Badge variant="secondary" className="font-medium text-muted-foreground">
+                Soon
+              </Badge>
+            ) : (
+              tool.isNew && (
+                <Badge className="bg-tool-green text-white hover:bg-tool-green/90">
+                  New!
+                </Badge>
+              )
+            )}
+          </div>
 
           {/* Icon */}
           <div
             className={cn(
-              "mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors",
+              "relative mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors",
               colorClasses[tool.color]
             )}
           >
@@ -50,10 +62,11 @@ const ToolCard = ({ tool, index }: ToolCardProps) => {
           </div>
 
           {/* Content */}
-          <h3 className="mb-2 text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+          <h3 className="relative mb-2 flex items-center gap-1 text-lg font-semibold text-foreground transition-colors group-hover:text-primary">
             {tool.name}
+            <ArrowUpRight className="h-4 w-4 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
           </h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="relative text-sm leading-relaxed text-muted-foreground">
             {tool.description}
           </p>
         </div>

@@ -18,6 +18,19 @@ import {
 
 export type ToolCategory = "all" | "organize" | "optimize" | "convert-to" | "convert-from" | "edit" | "security";
 
+/**
+ * Client-side capabilities that are actually implemented with pdf-lib.
+ * Tools without a `feature` are showcased but flagged `comingSoon`, since they
+ * require server-side processing (e.g. OCR, Office conversions, encryption).
+ */
+export type ToolFeature =
+  | "merge"
+  | "split"
+  | "rotate"
+  | "compress"
+  | "watermark"
+  | "jpg-to-pdf";
+
 export interface PDFTool {
   id: string;
   name: string;
@@ -27,6 +40,10 @@ export interface PDFTool {
   category: ToolCategory[];
   isNew?: boolean;
   route: string;
+  /** Maps the tool to a working pdf-lib engine. Omit for not-yet-available tools. */
+  feature?: ToolFeature;
+  /** True when the tool is showcased but not functional in the browser yet. */
+  comingSoon?: boolean;
 }
 
 export const pdfTools: PDFTool[] = [
@@ -39,6 +56,7 @@ export const pdfTools: PDFTool[] = [
     color: "coral",
     category: ["organize"],
     route: "/merge-pdf",
+    feature: "merge",
   },
   {
     id: "split",
@@ -48,6 +66,7 @@ export const pdfTools: PDFTool[] = [
     color: "purple",
     category: ["organize"],
     route: "/split-pdf",
+    feature: "split",
   },
   {
     id: "rotate",
@@ -57,6 +76,7 @@ export const pdfTools: PDFTool[] = [
     color: "blue",
     category: ["organize"],
     route: "/rotate-pdf",
+    feature: "rotate",
   },
 
   // Optimize PDF
@@ -68,6 +88,7 @@ export const pdfTools: PDFTool[] = [
     color: "green",
     category: ["optimize"],
     route: "/compress-pdf",
+    feature: "compress",
   },
 
   // Convert to PDF
@@ -79,6 +100,7 @@ export const pdfTools: PDFTool[] = [
     color: "blue",
     category: ["convert-to"],
     route: "/word-to-pdf",
+    comingSoon: true,
   },
   {
     id: "excel-to-pdf",
@@ -88,6 +110,7 @@ export const pdfTools: PDFTool[] = [
     color: "green",
     category: ["convert-to"],
     route: "/excel-to-pdf",
+    comingSoon: true,
   },
   {
     id: "ppt-to-pdf",
@@ -97,6 +120,7 @@ export const pdfTools: PDFTool[] = [
     color: "orange",
     category: ["convert-to"],
     route: "/powerpoint-to-pdf",
+    comingSoon: true,
   },
   {
     id: "jpg-to-pdf",
@@ -106,6 +130,7 @@ export const pdfTools: PDFTool[] = [
     color: "yellow",
     category: ["convert-to"],
     route: "/jpg-to-pdf",
+    feature: "jpg-to-pdf",
   },
   {
     id: "html-to-pdf",
@@ -116,6 +141,7 @@ export const pdfTools: PDFTool[] = [
     category: ["convert-to"],
     isNew: true,
     route: "/html-to-pdf",
+    comingSoon: true,
   },
 
   // Convert from PDF
@@ -127,6 +153,7 @@ export const pdfTools: PDFTool[] = [
     color: "blue",
     category: ["convert-from"],
     route: "/pdf-to-word",
+    comingSoon: true,
   },
   {
     id: "pdf-to-excel",
@@ -136,6 +163,7 @@ export const pdfTools: PDFTool[] = [
     color: "green",
     category: ["convert-from"],
     route: "/pdf-to-excel",
+    comingSoon: true,
   },
   {
     id: "pdf-to-ppt",
@@ -145,6 +173,7 @@ export const pdfTools: PDFTool[] = [
     color: "orange",
     category: ["convert-from"],
     route: "/pdf-to-powerpoint",
+    comingSoon: true,
   },
   {
     id: "pdf-to-jpg",
@@ -154,6 +183,7 @@ export const pdfTools: PDFTool[] = [
     color: "yellow",
     category: ["convert-from"],
     route: "/pdf-to-jpg",
+    comingSoon: true,
   },
 
   // Edit PDF
@@ -165,6 +195,7 @@ export const pdfTools: PDFTool[] = [
     color: "coral",
     category: ["edit"],
     route: "/edit-pdf",
+    comingSoon: true,
   },
   {
     id: "watermark",
@@ -174,6 +205,7 @@ export const pdfTools: PDFTool[] = [
     color: "teal",
     category: ["edit"],
     route: "/watermark-pdf",
+    feature: "watermark",
   },
 
   // Security
@@ -186,6 +218,7 @@ export const pdfTools: PDFTool[] = [
     category: ["security"],
     isNew: true,
     route: "/sign-pdf",
+    comingSoon: true,
   },
   {
     id: "protect",
@@ -195,6 +228,7 @@ export const pdfTools: PDFTool[] = [
     color: "coral",
     category: ["security"],
     route: "/protect-pdf",
+    comingSoon: true,
   },
   {
     id: "unlock",
@@ -204,6 +238,7 @@ export const pdfTools: PDFTool[] = [
     color: "pink",
     category: ["security"],
     route: "/unlock-pdf",
+    comingSoon: true,
   },
 ];
 
