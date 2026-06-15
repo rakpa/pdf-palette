@@ -7,20 +7,38 @@ function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}` };
 }
 
+/** iLovePDF public key — safe to expose in the browser (per iLovePDF client-side auth docs). */
+function getPublicKey(): string {
+  const key = import.meta.env.VITE_ILOVEPDF_PUBLIC_KEY;
+  if (!key) {
+    throw new Error(
+      "VITE_ILOVEPDF_PUBLIC_KEY is not configured. Add it to your environment variables."
+    );
+  }
+  return key;
+}
+
 async function getApiToken(): Promise<string> {
-  const res = await fetch("/api/compress-pdf/token");
+  const res = await fetch(`${API_BASE}/auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ public_key: getPublicKey() }),
+  });
+
   if (!res.ok) {
-    let detail = `Could not authenticate (${res.status})`;
+    let detail = `Could not authenticate with iLovePDF (${res.status})`;
     try {
-      const payload = (await res.json()) as { error?: string };
+      const payload = (await res.json()) as { error?: string; message?: string };
       if (payload.error) detail = payload.error;
+      else if (payload.message) detail = payload.message;
     } catch {
       // ignore
     }
     throw new Error(detail);
   }
+
   const { token } = (await res.json()) as { token?: string };
-  if (!token) throw new Error("Authentication response did not include a token");
+  if (!token) throw new Error("iLovePDF did not return an auth token");
   return token;
 }
 
@@ -32,8 +50,7 @@ type ProcessResult = {
 
 /**
  * Compress a PDF directly against iLovePDF servers (same path as ilovepdf.com).
- * Only a short-lived auth token is fetched from our backend — the file never
- * passes through our server, so large files (40MB+) work correctly.
+ * Auth and file upload go straight to iLovePDF — no backend proxy required.
  */
 export async function compressWithILovePDF(
   file: File,
