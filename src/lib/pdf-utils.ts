@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { saveAs } from "file-saver";
 
 export interface ProcessingResult {
@@ -52,19 +52,30 @@ export async function splitPDF(
   try {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await PDFDocument.load(arrayBuffer);
+    const pageCount = pdf.getPageCount();
     const results: ProcessingResult[] = [];
-    
+
     for (let i = 0; i < ranges.length; i++) {
       const range = ranges[i];
-      const newPdf = await PDFDocument.create();
       const pageIndices = [];
-      
+
       for (let p = range.start - 1; p < range.end; p++) {
-        if (p >= 0 && p < pdf.getPageCount()) {
+        if (p >= 0 && p < pageCount) {
           pageIndices.push(p);
         }
       }
-      
+
+      // Skip ranges that don't map to any real page instead of emitting an empty PDF.
+      if (pageIndices.length === 0) {
+        results.push({
+          success: false,
+          message: `Pages ${range.start}-${range.end} are out of range (document has ${pageCount} page${pageCount === 1 ? "" : "s"}).`,
+        });
+        onProgress?.(((i + 1) / ranges.length) * 100);
+        continue;
+      }
+
+      const newPdf = await PDFDocument.create();
       const pages = await newPdf.copyPages(pdf, pageIndices);
       pages.forEach((page) => newPdf.addPage(page));
       
@@ -108,7 +119,7 @@ export async function rotatePDF(
       if (pageIndex >= 0 && pageIndex < pages.length) {
         const page = pages[pageIndex];
         const currentRotation = page.getRotation().angle;
-        page.setRotation({ type: "degrees", angle: currentRotation + rotation } as any);
+        page.setRotation(degrees((currentRotation + rotation) % 360));
       }
       onProgress?.(((i + 1) / indicesToRotate.length) * 100);
     }
@@ -162,13 +173,20 @@ export async function compressPDF(
     const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
     const originalSize = file.size;
     const compressedSize = blob.size;
-    const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
-    
+    const reductionPct = ((originalSize - compressedSize) / originalSize) * 100;
+
     onProgress?.(100);
-    
+
+    // This pass strips metadata and re-packs object streams; some PDFs are already
+    // optimized, so be honest rather than reporting a misleading negative "reduction".
+    const message =
+      reductionPct > 0.5
+        ? `Compressed! Reduced by ${reductionPct.toFixed(1)}% (${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)})`
+        : `This PDF is already well-optimized — kept at ${formatFileSize(compressedSize)}.`;
+
     return {
       success: true,
-      message: `Compressed! Reduced by ${reduction}% (${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)})`,
+      message,
       blob,
       filename: `compressed_${file.name}`,
     };
@@ -180,39 +198,17 @@ export async function compressPDF(
   }
 }
 
-// Protect PDF with password
-export async function protectPDF(
-  file: File,
-  password: string,
-  onProgress?: (progress: number) => void
-): Promise<ProcessingResult> {
-  try {
-    onProgress?.(20);
-    const arrayBuffer = await file.arrayBuffer();
-    onProgress?.(40);
-    
-    const pdf = await PDFDocument.load(arrayBuffer);
-    onProgress?.(60);
-    
-    const pdfBytes = await pdf.save();
-    onProgress?.(80);
-    
-    const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
-    
-    onProgress?.(100);
-    
-    return {
-      success: true,
-      message: "PDF protection requires server-side processing. Client-side implementation coming soon!",
-      blob,
-      filename: `protected_${file.name}`,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: `Error protecting PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
-    };
-  }
+// Protect PDF with password.
+// NOTE: pdf-lib cannot encrypt documents, so there is no honest way to do this
+// fully in the browser. This intentionally returns a failure (no download) so we
+// never hand the user an *unencrypted* file that looks protected. The "Protect PDF"
+// tool is flagged `comingSoon` until a server-side encryption step exists.
+export async function protectPDF(): Promise<ProcessingResult> {
+  return {
+    success: false,
+    message:
+      "Password protection needs secure server-side encryption, which isn't available yet. Coming soon!",
+  };
 }
 
 // Add watermark to PDF
@@ -228,28 +224,39 @@ export async function addWatermark(
 ): Promise<ProcessingResult> {
   try {
     const { fontSize = 50, opacity = 0.3, rotation = -45 } = options;
-    
+
     onProgress?.(10);
     const arrayBuffer = await file.arrayBuffer();
     onProgress?.(30);
-    
+
     const pdf = await PDFDocument.load(arrayBuffer);
+    const font = await pdf.embedFont(StandardFonts.HelveticaBold);
     const pages = pdf.getPages();
-    
+
     onProgress?.(50);
-    
+
+    const angle = (rotation * Math.PI) / 180;
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const textHeight = font.heightAtSize(fontSize);
+
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       const { width, height } = page.getSize();
-      
+
+      // Offset the draw origin so the rotated text stays centered on the page.
+      const x = width / 2 - (textWidth / 2) * Math.cos(angle) + (textHeight / 2) * Math.sin(angle);
+      const y = height / 2 - (textWidth / 2) * Math.sin(angle) - (textHeight / 2) * Math.cos(angle);
+
       page.drawText(text, {
-        x: width / 2 - (text.length * fontSize) / 4,
-        y: height / 2,
+        x,
+        y,
         size: fontSize,
+        font,
+        color: rgb(0.5, 0.5, 0.5),
         opacity,
-        rotate: { type: "degrees", angle: rotation } as any,
+        rotate: degrees(rotation),
       });
-      
+
       onProgress?.(50 + ((i + 1) / pages.length) * 40);
     }
     

@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
+import ThemeToggle from "./ThemeToggle";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +29,7 @@ const Navbar = () => {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <FileText className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">PDFTools</span>
+            <span className="text-xl font-bold text-foreground">PDF Palette</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -93,23 +94,26 @@ const Navbar = () => {
             </DropdownMenu>
           </div>
 
-          {/* Auth Buttons (Decorative) */}
+          {/* Right side */}
           <div className="hidden items-center gap-2 md:flex">
-            <Button variant="ghost" size="sm">
-              Login
-            </Button>
-            <Button size="sm">Sign up</Button>
+            <ThemeToggle />
+            <Link to="/#tools">
+              <Button size="sm">Explore tools</Button>
+            </Link>
           </div>
 
-          {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          {/* Mobile controls */}
+          <div className="flex items-center gap-1 md:hidden">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Toggle menu"
+            >
+              {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -151,14 +155,11 @@ const Navbar = () => {
               >
                 All PDF Tools
               </Link>
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1">
-                  Login
+              <Link to="/#tools" onClick={() => setIsOpen(false)}>
+                <Button size="sm" className="mt-2 w-full">
+                  Explore tools
                 </Button>
-                <Button size="sm" className="flex-1">
-                  Sign up
-                </Button>
-              </div>
+              </Link>
             </div>
           </motion.div>
         )}
