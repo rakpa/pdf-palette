@@ -3,6 +3,11 @@ import { saveAs } from "file-saver";
 import {
   compressWithGhostscript,
 } from "./ghostscript-compress";
+import { convertWordToPdfLocal } from "./word-to-pdf-client";
+import { convertPdfToWordLocal } from "./pdf-to-word-client";
+import { unlockPdfLocal } from "./unlock-pdf-client";
+import { protectPdfLocal } from "./protect-pdf-client";
+import { htmlToPdfLocal } from "./html-to-pdf-client";
 import type { CompressionLevel } from "./compression-types";
 
 export type { CompressionLevel };
@@ -207,6 +212,86 @@ export async function protectPDF(): Promise<ProcessingResult> {
   };
 }
 
+export async function unlockPDF(
+  file: File,
+  password: string,
+  onProgress?: (progress: number, message?: string) => void
+): Promise<ProcessingResult> {
+  try {
+    const { blob, filename } = await unlockPdfLocal(file, password, onProgress);
+    return {
+      success: true,
+      message: "PDF unlocked successfully!",
+      blob,
+      filename,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
+    return {
+      success: false,
+      message: `Error unlocking PDF: ${detail}`,
+    };
+  }
+}
+
+export async function protectPDFWithPassword(
+  file: File,
+  password: string,
+  onProgress?: (progress: number, message?: string) => void
+): Promise<ProcessingResult> {
+  try {
+    const { blob, filename } = await protectPdfLocal(file, password, onProgress);
+    return {
+      success: true,
+      message: "Password protection added!",
+      blob,
+      filename,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
+    return {
+      success: false,
+      message: `Error protecting PDF: ${detail}`,
+    };
+  }
+}
+
+export async function htmlToPDF(
+  input: { file?: File; url?: string },
+  onProgress?: (progress: number, message?: string) => void
+): Promise<ProcessingResult> {
+  try {
+    const { blob, filename } = await htmlToPdfLocal(input, onProgress);
+    return {
+      success: true,
+      message: "PDF generated successfully!",
+      blob,
+      filename,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
+    return {
+      success: false,
+      message: `Error converting HTML: ${detail}`,
+    };
+  }
+}
+
 // Add watermark to PDF
 export async function addWatermark(
   file: File,
@@ -303,6 +388,60 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+
+// Convert Word documents to PDF via local LibreOffice headless service.
+export async function wordToPDF(
+  file: File,
+  onProgress?: (progress: number, message?: string) => void
+): Promise<ProcessingResult> {
+  try {
+    const { blob, filename } = await convertWordToPdfLocal(file, onProgress);
+    return {
+      success: true,
+      message: "Word document converted to PDF successfully!",
+      blob,
+      filename,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
+    return {
+      success: false,
+      message: `Error converting document: ${detail}`,
+    };
+  }
+}
+
+// Convert PDF to Word via local LibreOffice headless service.
+export async function pdfToWord(
+  file: File,
+  onProgress?: (progress: number, message?: string) => void
+): Promise<ProcessingResult> {
+  try {
+    const { blob, filename } = await convertPdfToWordLocal(file, onProgress);
+    return {
+      success: true,
+      message: "PDF converted to Word successfully!",
+      blob,
+      filename,
+    };
+  } catch (error) {
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "Unknown error";
+    return {
+      success: false,
+      message: `Error converting PDF: ${detail}`,
+    };
+  }
 }
 
 // Convert images to PDF

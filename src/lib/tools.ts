@@ -1,27 +1,33 @@
-import { 
-  FileStack, 
-  Scissors, 
-  RotateCw, 
-  Minimize2, 
-  FileText, 
-  FileSpreadsheet, 
-  Presentation, 
-  Image, 
-  Code, 
-  Edit3, 
-  Droplets, 
-  PenTool, 
-  Lock, 
+import {
+  FileStack,
+  Scissors,
+  RotateCw,
+  Minimize2,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  Image,
+  Code,
+  Edit3,
+  Droplets,
+  PenTool,
+  Lock,
   Unlock,
-  LucideIcon
+  LucideIcon,
 } from "lucide-react";
 
-export type ToolCategory = "all" | "organize" | "optimize" | "convert-to" | "convert-from" | "edit" | "security";
+export type ToolCategory =
+  | "all"
+  | "organize"
+  | "optimize"
+  | "convert-to"
+  | "convert-from"
+  | "edit"
+  | "security";
 
 /**
- * Client-side capabilities that are actually implemented with pdf-lib.
- * Tools without a `feature` are showcased but flagged `comingSoon`, since they
- * require server-side processing (e.g. OCR, Office conversions, encryption).
+ * Client-side capabilities implemented in the browser.
+ * Tools without a `feature` are showcased but flagged `comingSoon`.
  */
 export type ToolFeature =
   | "merge"
@@ -29,16 +35,25 @@ export type ToolFeature =
   | "rotate"
   | "compress"
   | "watermark"
-  | "jpg-to-pdf";
+  | "jpg-to-pdf"
+  | "word-to-pdf"
+  | "pdf-to-word"
+  | "unlock-pdf"
+  | "protect-pdf"
+  | "html-to-pdf";
 
 export interface PDFTool {
   id: string;
   name: string;
   description: string;
   icon: LucideIcon;
+  /** Optional icon to display when `comingSoon` is true. */
+  comingSoonIcon?: LucideIcon;
   color: "coral" | "green" | "blue" | "yellow" | "purple" | "orange" | "teal" | "pink";
   category: ToolCategory[];
   isNew?: boolean;
+  /** Shown with a subtle highlight on the homepage grid. */
+  popular?: boolean;
   route: string;
   /** Maps the tool to a working pdf-lib engine. Omit for not-yet-available tools. */
   feature?: ToolFeature;
@@ -46,52 +61,75 @@ export interface PDFTool {
   comingSoon?: boolean;
 }
 
+/** Homepage display order — most-used tools first. */
 export const pdfTools: PDFTool[] = [
-  // Organize PDF
+  // Row 1
   {
     id: "merge",
     name: "Merge PDF",
-    description: "Combine multiple PDF files into one document",
+    description: "Combine multiple PDFs into one document",
     icon: FileStack,
     color: "coral",
     category: ["organize"],
+    popular: true,
     route: "/merge-pdf",
     feature: "merge",
   },
   {
     id: "split",
     name: "Split PDF",
-    description: "Separate one PDF into multiple documents",
+    description: "Separate one PDF into multiple files",
     icon: Scissors,
     color: "purple",
     category: ["organize"],
+    popular: true,
     route: "/split-pdf",
     feature: "split",
   },
   {
-    id: "rotate",
-    name: "Rotate PDF",
-    description: "Rotate PDF pages to the correct orientation",
-    icon: RotateCw,
-    color: "blue",
-    category: ["organize"],
-    route: "/rotate-pdf",
-    feature: "rotate",
-  },
-
-  // Optimize PDF
-  {
     id: "compress",
     name: "Compress PDF",
-    description: "Reduce file size while maintaining quality",
+    description: "Reduce file size while keeping quality",
     icon: Minimize2,
     color: "green",
     category: ["optimize"],
+    popular: true,
     route: "/compress-pdf",
     feature: "compress",
   },
+  {
+    id: "pdf-to-word",
+    name: "PDF to Word",
+    description: "Convert PDF to editable Word documents",
+    icon: FileText,
+    color: "blue",
+    category: ["convert-from"],
+    popular: true,
+    route: "/pdf-to-word",
+    feature: "pdf-to-word",
+  },
+  {
+    id: "pdf-to-excel",
+    name: "PDF to Excel",
+    description: "Extract tables from PDF to Excel",
+    icon: FileSpreadsheet,
+    color: "green",
+    category: ["convert-from"],
+    route: "/pdf-to-excel",
+    comingSoon: true,
+  },
+  {
+    id: "pdf-to-ppt",
+    name: "PDF to PowerPoint",
+    description: "Convert PDF to editable presentations",
+    icon: Presentation,
+    color: "orange",
+    category: ["convert-from"],
+    route: "/pdf-to-powerpoint",
+    comingSoon: true,
+  },
 
-  // Convert to PDF
+  // Row 2
   {
     id: "word-to-pdf",
     name: "Word to PDF",
@@ -99,8 +137,9 @@ export const pdfTools: PDFTool[] = [
     icon: FileText,
     color: "blue",
     category: ["convert-to"],
+    popular: true,
     route: "/word-to-pdf",
-    comingSoon: true,
+    feature: "word-to-pdf",
   },
   {
     id: "excel-to-pdf",
@@ -129,51 +168,9 @@ export const pdfTools: PDFTool[] = [
     icon: Image,
     color: "yellow",
     category: ["convert-to"],
+    popular: true,
     route: "/jpg-to-pdf",
     feature: "jpg-to-pdf",
-  },
-  {
-    id: "html-to-pdf",
-    name: "HTML to PDF",
-    description: "Convert web pages to PDF format",
-    icon: Code,
-    color: "teal",
-    category: ["convert-to"],
-    isNew: true,
-    route: "/html-to-pdf",
-    comingSoon: true,
-  },
-
-  // Convert from PDF
-  {
-    id: "pdf-to-word",
-    name: "PDF to Word",
-    description: "Convert PDF files to editable Word documents",
-    icon: FileText,
-    color: "blue",
-    category: ["convert-from"],
-    route: "/pdf-to-word",
-    comingSoon: true,
-  },
-  {
-    id: "pdf-to-excel",
-    name: "PDF to Excel",
-    description: "Extract tables from PDF to Excel",
-    icon: FileSpreadsheet,
-    color: "green",
-    category: ["convert-from"],
-    route: "/pdf-to-excel",
-    comingSoon: true,
-  },
-  {
-    id: "pdf-to-ppt",
-    name: "PDF to PowerPoint",
-    description: "Convert PDF to editable presentations",
-    icon: Presentation,
-    color: "orange",
-    category: ["convert-from"],
-    route: "/pdf-to-powerpoint",
-    comingSoon: true,
   },
   {
     id: "pdf-to-jpg",
@@ -185,8 +182,18 @@ export const pdfTools: PDFTool[] = [
     route: "/pdf-to-jpg",
     comingSoon: true,
   },
+  {
+    id: "rotate",
+    name: "Rotate PDF",
+    description: "Rotate PDF pages to the correct orientation",
+    icon: RotateCw,
+    color: "blue",
+    category: ["organize"],
+    route: "/rotate-pdf",
+    feature: "rotate",
+  },
 
-  // Edit PDF
+  // Row 3
   {
     id: "edit",
     name: "Edit PDF",
@@ -197,18 +204,6 @@ export const pdfTools: PDFTool[] = [
     route: "/edit-pdf",
     comingSoon: true,
   },
-  {
-    id: "watermark",
-    name: "Add Watermark",
-    description: "Add text or image watermark to PDF",
-    icon: Droplets,
-    color: "teal",
-    category: ["edit"],
-    route: "/watermark-pdf",
-    feature: "watermark",
-  },
-
-  // Security
   {
     id: "sign",
     name: "Sign PDF",
@@ -221,6 +216,27 @@ export const pdfTools: PDFTool[] = [
     comingSoon: true,
   },
   {
+    id: "watermark",
+    name: "Watermark PDF",
+    description: "Add text or image watermark to PDF",
+    icon: Droplets,
+    color: "teal",
+    category: ["edit"],
+    route: "/watermark-pdf",
+    feature: "watermark",
+  },
+  {
+    id: "unlock",
+    name: "Unlock PDF",
+    description: "Remove password protection from PDF",
+    icon: Unlock,
+    comingSoonIcon: Lock,
+    color: "pink",
+    category: ["security"],
+    route: "/unlock-pdf",
+    feature: "unlock-pdf",
+  },
+  {
     id: "protect",
     name: "Protect PDF",
     description: "Add password protection to your PDF",
@@ -228,26 +244,27 @@ export const pdfTools: PDFTool[] = [
     color: "coral",
     category: ["security"],
     route: "/protect-pdf",
-    comingSoon: true,
+    feature: "protect-pdf",
   },
   {
-    id: "unlock",
-    name: "Unlock PDF",
-    description: "Remove password protection from PDF",
-    icon: Unlock,
-    color: "pink",
-    category: ["security"],
-    route: "/unlock-pdf",
-    comingSoon: true,
+    id: "html-to-pdf",
+    name: "HTML to PDF",
+    description: "Convert web pages to PDF format",
+    icon: Code,
+    color: "teal",
+    category: ["convert-to"],
+    isNew: true,
+    route: "/html-to-pdf",
+    feature: "html-to-pdf",
   },
 ];
 
 export const categories = [
   { id: "all", label: "All Tools" },
   { id: "organize", label: "Organize PDF" },
+  { id: "convert-to", label: "Convert To PDF" },
+  { id: "convert-from", label: "Convert From PDF" },
   { id: "optimize", label: "Optimize PDF" },
-  { id: "convert-to", label: "Convert to PDF" },
-  { id: "convert-from", label: "Convert from PDF" },
   { id: "edit", label: "Edit PDF" },
   { id: "security", label: "Security" },
 ] as const;

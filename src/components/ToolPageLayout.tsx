@@ -32,13 +32,13 @@ const ToolPageLayout = ({ tool, children }: ToolPageLayoutProps) => {
       
       <main className="flex-1">
         {/* Header */}
-        <section className="border-b border-border bg-gradient-to-br from-background to-muted/30 py-8 md:py-12">
+        <section className="border-b border-border bg-gradient-to-br from-background to-muted/30 py-4 md:py-5">
           <div className="container mx-auto px-4">
             {/* Breadcrumb */}
             <motion.nav
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="mb-6 flex items-center gap-2 text-sm text-muted-foreground"
+              className="mb-3 flex items-center gap-2 text-sm text-muted-foreground"
             >
               <Link to="/" className="flex items-center gap-1 hover:text-foreground transition-colors">
                 <Home className="h-4 w-4" />
@@ -49,32 +49,30 @@ const ToolPageLayout = ({ tool, children }: ToolPageLayoutProps) => {
             </motion.nav>
 
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-start gap-4"
+              className="mx-auto max-w-2xl text-center"
             >
               <div
                 className={cn(
-                  "flex h-14 w-14 items-center justify-center rounded-2xl",
+                  "mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl",
                   colorClasses[tool.color]
                 )}
               >
-                <Icon className="h-7 w-7" />
+                <Icon className="h-5 w-5" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground md:text-3xl">
-                  {tool.name}
-                </h1>
-                <p className="mt-1 text-muted-foreground">
-                  {tool.description}
-                </p>
-              </div>
+              <h1 className="text-xl font-bold text-foreground md:text-2xl">
+                {tool.name}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground md:text-base">
+                {tool.description}
+              </p>
             </motion.div>
           </div>
         </section>
 
         {/* Content */}
-        <section className="py-8 md:py-12">
+        <section className="py-4 md:py-6">
           <div className="container mx-auto px-4">
             <motion.div
               initial={{ opacity: 0, y: 20 }}

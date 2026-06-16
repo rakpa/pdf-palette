@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, File, X, AlertCircle } from "lucide-react";
@@ -18,13 +18,56 @@ const formatSize = (bytes: number): string => {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 };
 
+export interface UploadLabels {
+  dropzone: string;
+  button: string;
+  invalidType: string;
+}
+
+function labelsFromAccept(accept: Record<string, string[]>): UploadLabels {
+  const exts = [...new Set(Object.values(accept).flat())];
+
+  if (exts.length === 1 && exts[0] === ".pdf") {
+    return {
+      dropzone: "Drag & drop PDF files here",
+      button: "Select PDF files",
+      invalidType: "Please upload PDF files only.",
+    };
+  }
+
+  if (exts.some((e) => e === ".doc" || e === ".docx") && !exts.includes(".pdf")) {
+    return {
+      dropzone: "Drag & drop Word documents here",
+      button: "Select Word file",
+      invalidType: "Please upload a .doc or .docx file.",
+    };
+  }
+
+  if (exts.every((e) => [".jpg", ".jpeg", ".png"].includes(e))) {
+    return {
+      dropzone: "Drag & drop images here",
+      button: "Select images",
+      invalidType: "Please upload JPG or PNG images.",
+    };
+  }
+
+  const names = exts.map((e) => e.replace(".", "").toUpperCase()).join(", ");
+  return {
+    dropzone: "Drag & drop files here",
+    button: "Select files",
+    invalidType: `Please upload a supported file (${names}).`,
+  };
+}
+
 interface FileUploaderProps {
   accept?: Record<string, string[]>;
   maxFiles?: number;
   maxSize?: number;
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
+  labels?: Partial<UploadLabels>;
   className?: string;
+  compact?: boolean;
 }
 
 const FileUploader = ({
@@ -33,12 +76,18 @@ const FileUploader = ({
   maxSize = 100 * 1024 * 1024, // 100MB
   files,
   onFilesChange,
+  labels: labelsOverride,
   className,
+  compact = false,
 }: FileUploaderProps) => {
   const [error, setError] = useState<string | null>(null);
+  const labels = useMemo(
+    () => ({ ...labelsFromAccept(accept), ...labelsOverride }),
+    [accept, labelsOverride]
+  );
 
   const onDrop = useCallback(
-    (acceptedFiles: File[], rejectedFiles: any[]) => {
+    (acceptedFiles: File[], rejectedFiles: { errors: { code?: string }[] }[]) => {
       setError(null);
 
       if (rejectedFiles.length > 0) {
@@ -46,7 +95,7 @@ const FileUploader = ({
         if (rejection.errors[0]?.code === "file-too-large") {
           setError(`File is too large. Maximum size is ${maxSize / 1024 / 1024}MB`);
         } else if (rejection.errors[0]?.code === "file-invalid-type") {
-          setError("Invalid file type. Please upload PDF files only.");
+          setError(labels.invalidType);
         } else {
           setError("Some files were rejected.");
         }
@@ -65,7 +114,7 @@ const FileUploader = ({
 
       onFilesChange([...files, ...newFiles]);
     },
-    [files, maxFiles, maxSize, onFilesChange]
+    [files, labels.invalidType, maxFiles, maxSize, onFilesChange]
   );
 
   const removeFile = (id: string) => {
@@ -82,12 +131,12 @@ const FileUploader = ({
   });
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Dropzone */}
+    <div className={cn(compact ? "space-y-3" : "space-y-4", className)}>
       <div
         {...getRootProps()}
         className={cn(
-          "relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all",
+          "relative cursor-pointer rounded-xl border-2 border-dashed text-center transition-all",
+          compact ? "p-5 md:p-6" : "rounded-2xl p-8",
           isDragActive
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/50",
@@ -98,34 +147,51 @@ const FileUploader = ({
         <motion.div
           initial={false}
           animate={{ scale: isDragActive ? 1.02 : 1 }}
-          className="flex flex-col items-center gap-4"
+          className={cn("flex flex-col items-center", compact ? "gap-2.5" : "gap-4")}
         >
-          <div
-            className={cn(
-              "flex h-16 w-16 items-center justify-center rounded-full transition-colors",
-              isDragActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-            )}
-          >
-            <Upload className="h-8 w-8" />
-          </div>
+          {!compact && (
+            <div
+              className={cn(
+                "flex h-16 w-16 items-center justify-center rounded-full transition-colors",
+                isDragActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}
+            >
+              <Upload className="h-8 w-8" />
+            </div>
+          )}
           <div>
-            <p className="text-lg font-medium text-foreground">
-              {isDragActive ? "Drop your files here" : "Drag & drop PDF files here"}
+            <p
+              className={cn(
+                "font-semibold text-foreground",
+                compact ? "text-lg md:text-xl" : "text-lg"
+              )}
+            >
+              {isDragActive ? "Drop your files here" : labels.dropzone}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              or click to browse from your computer
+            <p
+              className={cn(
+                "mt-0.5 text-muted-foreground",
+                compact ? "text-base" : "text-sm"
+              )}
+            >
+              {compact ? "or drop files here" : "or click to browse from your computer"}
             </p>
           </div>
-          <Button type="button" variant="outline" disabled={files.length >= maxFiles}>
-            Select PDF files
+          <Button
+            type="button"
+            size={compact ? "lg" : "default"}
+            variant={compact ? "default" : "outline"}
+            className={cn(compact && "min-w-[200px] text-base font-semibold")}
+            disabled={files.length >= maxFiles}
+          >
+            {labels.button}
           </Button>
           <p className="text-xs text-muted-foreground">
-            Up to {maxFiles} files, max {maxSize / 1024 / 1024}MB each
+            Up to {maxFiles} file{maxFiles === 1 ? "" : "s"}, max {maxSize / 1024 / 1024}MB each
           </p>
         </motion.div>
       </div>
 
-      {/* Error */}
       <AnimatePresence>
         {error && (
           <motion.div
@@ -140,7 +206,6 @@ const FileUploader = ({
         )}
       </AnimatePresence>
 
-      {/* File List */}
       <AnimatePresence>
         {files.length > 0 && (
           <motion.div

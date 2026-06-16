@@ -11,9 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+public/gs-wasm
+dist/gs-wasm
+dist/libre-wasm
 .env
 .env.*
 !.env.example
+services/word-to-pdf/python/__pycache__/
+services/word-to-pdf/python/**/*.pyc
 
 # Editor directories and files
 .vscode/*

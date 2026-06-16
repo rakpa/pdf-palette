@@ -1,0 +1,35 @@
+{
+  "name": "@pdf-palette/word-to-pdf-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^4.21.2",
+    "pdf-lib": "^1.17.1",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "playwright": "^1.54.0",
+    "uuid": "^11.0.5",
+    "vite_react_shadcn_ts": "file:../..",
+    "yauzl": "^2.10.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.16.5",
+    "@types/yauzl": "^2.10.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}

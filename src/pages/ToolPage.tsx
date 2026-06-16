@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   CheckCircle2,
   Download,
   Loader2,
@@ -12,6 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 
+import { warmupGhostscript } from "@/lib/ghostscript-compress";
 import { getToolByRoute, ToolFeature } from "@/lib/tools";
 import {
   CompressionLevel,
@@ -20,10 +22,15 @@ import {
   compressPDF,
   downloadResult,
   getPDFInfo,
+  htmlToPDF,
   imagesToPDF,
   mergePDFs,
+  pdfToWord,
+  protectPDFWithPassword,
   rotatePDF,
   splitPDF,
+  unlockPDF,
+  wordToPDF,
 } from "@/lib/pdf-utils";
 import ToolPageLayout from "@/components/ToolPageLayout";
 import FileUploader, { UploadedFile } from "@/components/FileUploader";
@@ -34,6 +41,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import {
+  checkConversionHealth,
+  conversionBlockedMessage,
+  isConversionReady,
+  type ConversionHealth,
+  type ConversionFeature,
+} from "@/lib/conversion-service-client";
 
 /** Per-feature upload constraints. */
 const featureConfig: Record<
@@ -72,7 +86,7 @@ const featureConfig: Record<
     maxFiles: 1,
     minFiles: 1,
     cta: "Compress PDF",
-    hint: "Shrink your PDF using Ghostscript — runs entirely in your browser, no upload.",
+    hint: "",
   },
   watermark: {
     accept: { "application/pdf": [".pdf"] },
@@ -87,6 +101,44 @@ const featureConfig: Record<
     minFiles: 1,
     cta: "Create PDF",
     hint: "Add JPG or PNG images — one image per page, in order.",
+  },
+  "word-to-pdf": {
+    accept: {
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/msword": [".doc"],
+    },
+    maxFiles: 1,
+    minFiles: 1,
+    cta: "Convert to PDF",
+    hint: "Upload a .doc or .docx file. Converted locally with LibreOffice — fonts, tables, and layout preserved.",
+  },
+  "pdf-to-word": {
+    accept: { "application/pdf": [".pdf"] },
+    maxFiles: 1,
+    minFiles: 1,
+    cta: "Convert to Word",
+    hint: "Upload a PDF. Layout, images, tables, and code blocks are reconstructed locally (pdf2docx).",
+  },
+  "unlock-pdf": {
+    accept: { "application/pdf": [".pdf"] },
+    maxFiles: 1,
+    minFiles: 1,
+    cta: "Unlock PDF",
+    hint: "Enter the password used to open the PDF, then download an unlocked copy.",
+  },
+  "protect-pdf": {
+    accept: { "application/pdf": [".pdf"] },
+    maxFiles: 1,
+    minFiles: 1,
+    cta: "Protect PDF",
+    hint: "Set a password required to open the PDF.",
+  },
+  "html-to-pdf": {
+    accept: { "text/html": [".html", ".htm"] },
+    maxFiles: 1,
+    minFiles: 0,
+    cta: "Convert to PDF",
+    hint: "Provide an HTML file or a URL.",
   },
 };
 
@@ -121,27 +173,76 @@ const ToolPage = () => {
   const [opacity, setOpacity] = useState(0.3);
   const [compressionLevel, setCompressionLevel] =
     useState<CompressionLevel>("recommended");
+  const [convertStatus, setConvertStatus] = useState("");
+  const [serviceHealth, setServiceHealth] = useState<ConversionHealth | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [htmlUrl, setHtmlUrl] = useState("");
 
   const config = useMemo(
     () => (tool?.feature ? featureConfig[tool.feature] : undefined),
     [tool]
   );
 
+  // Preload Ghostscript WASM while the user picks a file — saves 10–15s on first compress.
+  useEffect(() => {
+    if (tool?.feature !== "compress") return;
+    warmupGhostscript().catch(() => {
+      // Warmup is best-effort; compress will retry loading the engine.
+    });
+  }, [tool?.feature]);
+
+  useEffect(() => {
+    if (
+      tool?.feature !== "word-to-pdf" &&
+      tool?.feature !== "pdf-to-word" &&
+      tool?.feature !== "unlock-pdf" &&
+      tool?.feature !== "protect-pdf" &&
+      tool?.feature !== "html-to-pdf"
+    ) {
+      return;
+    }
+    let cancelled = false;
+    checkConversionHealth().then((health) => {
+      if (!cancelled) setServiceHealth(health);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tool?.feature]);
+
   if (!tool) return <NotFound />;
 
+  const needsConversionService =
+    tool?.feature === "word-to-pdf" ||
+    tool?.feature === "pdf-to-word" ||
+    tool?.feature === "unlock-pdf" ||
+    tool?.feature === "protect-pdf" ||
+    tool?.feature === "html-to-pdf";
+
   const canProcess =
-    !!config && files.length >= config.minFiles && !isProcessing;
+    !!config &&
+    (tool.feature === "html-to-pdf"
+      ? files.length >= 1 || htmlUrl.trim().length > 0
+      : files.length >= config.minFiles) &&
+    !isProcessing &&
+    (!needsConversionService ||
+      isConversionReady(serviceHealth, tool!.feature as ConversionFeature));
 
   const reset = () => {
     setFiles([]);
     setResult(null);
     setProgress(0);
+    setPassword("");
+    setConfirmPassword("");
+    setHtmlUrl("");
   };
 
   const handleProcess = async () => {
     if (!tool.feature || !config) return;
     setIsProcessing(true);
     setProgress(0);
+    setConvertStatus("");
     setResult(null);
 
     const onProgress = (p: number) => setProgress(p);
@@ -170,6 +271,43 @@ const ToolPage = () => {
           break;
         case "jpg-to-pdf":
           res = await imagesToPDF(inputFiles, onProgress);
+          break;
+        case "word-to-pdf":
+          res = await wordToPDF(inputFiles[0], (p, message) => {
+            onProgress(p);
+            if (message) setConvertStatus(message);
+          });
+          break;
+        case "pdf-to-word":
+          res = await pdfToWord(inputFiles[0], (p, message) => {
+            onProgress(p);
+            if (message) setConvertStatus(message);
+          });
+          break;
+        case "unlock-pdf":
+          res = await unlockPDF(inputFiles[0], password, (p, message) => {
+            onProgress(p);
+            if (message) setConvertStatus(message);
+          });
+          break;
+        case "protect-pdf":
+          if (password.trim() !== confirmPassword.trim()) {
+            res = { success: false, message: "Passwords do not match." };
+            break;
+          }
+          res = await protectPDFWithPassword(inputFiles[0], password, (p, message) => {
+            onProgress(p);
+            if (message) setConvertStatus(message);
+          });
+          break;
+        case "html-to-pdf":
+          res = await htmlToPDF(
+            { file: inputFiles[0], url: htmlUrl.trim() || undefined },
+            (p, message) => {
+              onProgress(p);
+              if (message) setConvertStatus(message);
+            }
+          );
           break;
         case "split": {
           const parsed = parseRanges(ranges);
@@ -214,6 +352,7 @@ const ToolPage = () => {
       toast.error(message);
     } finally {
       setProgress(100);
+      setConvertStatus("");
       setIsProcessing(false);
     }
   };
@@ -224,8 +363,16 @@ const ToolPage = () => {
         {tool.comingSoon || !config ? (
           <ComingSoon />
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
+            {needsConversionService && (
+              <ConversionServiceStatus
+                health={serviceHealth}
+                feature={tool.feature as ConversionFeature}
+              />
+            )}
+
             <FileUploader
+              compact
               accept={config.accept}
               maxFiles={config.maxFiles}
               files={files}
@@ -233,13 +380,24 @@ const ToolPage = () => {
                 setFiles(f);
                 setResult(null);
               }}
+              labels={
+                tool.feature === "html-to-pdf"
+                  ? { dropzone: "Drag & drop an HTML file here", button: "Select HTML file" }
+                  : undefined
+              }
             />
 
-            <p className="text-sm text-muted-foreground">{config.hint}</p>
+            {config.hint && tool.feature !== "word-to-pdf" && tool.feature !== "pdf-to-word" ? (
+              <p className="text-center text-sm text-muted-foreground">{config.hint}</p>
+            ) : null}
 
             {/* Tool-specific options */}
-            {files.length > 0 && (
-              <div className="rounded-2xl border border-border bg-card p-5">
+            {files.length > 0 &&
+              (tool.feature === "rotate" ||
+                tool.feature === "split" ||
+                tool.feature === "watermark" ||
+                tool.feature === "compress") && (
+              <div className="rounded-xl border border-border bg-card p-4">
                 {tool.feature === "rotate" && (
                   <RotateOptions value={rotation} onChange={setRotation} />
                 )}
@@ -288,16 +446,73 @@ const ToolPage = () => {
                     onChange={setCompressionLevel}
                   />
                 )}
-                {(tool.feature === "merge" || tool.feature === "jpg-to-pdf") && (
-                  <p className="text-sm text-muted-foreground">
-                    Ready when you are — hit <span className="font-medium text-foreground">{config.cta}</span> below.
-                  </p>
+              </div>
+            )}
+
+            {(tool.feature === "unlock-pdf" ||
+              tool.feature === "protect-pdf" ||
+              tool.feature === "html-to-pdf") && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                {tool.feature === "html-to-pdf" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="html-url">URL (optional)</Label>
+                    <Input
+                      id="html-url"
+                      placeholder="https://example.com/page"
+                      value={htmlUrl}
+                      onChange={(e) => setHtmlUrl(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Provide a URL, an HTML file, or both (file wins for local content).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pw">
+                        {tool.feature === "unlock-pdf" ? "Password" : "New password"}
+                      </Label>
+                      <Input
+                        id="pw"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={tool.feature === "unlock-pdf" ? "Enter PDF password" : "At least 4 characters"}
+                      />
+                    </div>
+                    {tool.feature === "protect-pdf" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="pw2">Confirm password</Label>
+                        <Input
+                          id="pw2"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter password"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
 
             {/* Progress */}
-            {isProcessing && <ProgressBar progress={progress} />}
+            {isProcessing && (
+              <ProgressBar
+                progress={progress}
+                label={
+                  tool.feature === "word-to-pdf" || tool.feature === "pdf-to-word"
+                    ? convertStatus || "Converting…"
+                    : "Processing…"
+                }
+                indeterminate={
+                  (tool.feature === "word-to-pdf" || tool.feature === "pdf-to-word") &&
+                  progress === 0 &&
+                  !convertStatus
+                }
+              />
+            )}
 
             {/* Result banner */}
             {result?.success && !isProcessing && (
@@ -321,10 +536,10 @@ const ToolPage = () => {
             )}
 
             {/* Action */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
               <Button
                 size="lg"
-                className="gap-2"
+                className="min-w-[220px] gap-2 text-base font-semibold md:text-lg"
                 disabled={!canProcess}
                 onClick={handleProcess}
               >
@@ -347,7 +562,7 @@ const ToolPage = () => {
               )}
             </div>
 
-            <PrivacyNote />
+            <PrivacyNote feature={tool.feature} />
           </div>
         )}
       </div>
@@ -437,18 +652,59 @@ const CompressOptions = ({
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Powered by Ghostscript in your browser — the same engine many PDF tools use.
         Recommended balances size and quality. Extreme targets the smallest file.
-        First run downloads the engine (~15 MB); later compressions are faster.
       </p>
     </div>
   );
 };
 
-const PrivacyNote = () => (
-  <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
+const ConversionServiceStatus = ({
+  health,
+  feature,
+}: {
+  health: ConversionHealth | null;
+  feature: ConversionFeature;
+}) => {
+  if (!health) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Checking conversion service…
+      </div>
+    );
+  }
+
+  // Don't show a green "ready" banner; only show this area when there's an issue.
+  if (isConversionReady(health, feature)) return null;
+
+  const message = conversionBlockedMessage(health, feature);
+
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+      <div className="flex items-start gap-2">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <div className="space-y-1">
+          <p className="font-medium text-destructive">Conversion service unavailable</p>
+          <p className="text-muted-foreground">
+            {message ||
+              "Run npm run dev from the project root to start both the website and conversion service."}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PrivacyNote = ({ feature }: { feature?: ToolFeature }) => (
+  <div className="flex items-center justify-center gap-2 pt-1 text-xs text-muted-foreground">
     <ShieldCheck className="h-4 w-4 text-tool-green" />
-    Your files are processed locally and never uploaded to a server.
+    {feature === "word-to-pdf" ||
+    feature === "pdf-to-word" ||
+    feature === "unlock-pdf" ||
+    feature === "protect-pdf" ||
+    feature === "html-to-pdf"
+      ? "Your file is converted on your machine and deleted immediately after download."
+      : "Your files are processed locally and never uploaded to a server."}
   </div>
 );
 

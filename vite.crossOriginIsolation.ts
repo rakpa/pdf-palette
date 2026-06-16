@@ -1,0 +1,29 @@
+import type { Connect, Plugin, ViteDevServer } from "vite";
+
+/** COEP require-corp needs CORP on every same-origin response (workers, wasm, scripts). */
+export function crossOriginIsolationPlugin(): Plugin {
+  return {
+    name: "cross-origin-isolation",
+    enforce: "pre",
+    configureServer(server) {
+      prependMiddleware(server, (_req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+        next();
+      });
+    },
+  };
+}
+
+function corpHeaders(res: { setHeader: (k: string, v: string) => void }) {
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+}
+
+/** Run before Vite's transform middleware so large WASM/LO scripts are served raw. */
+export function prependMiddleware(
+  server: ViteDevServer,
+  handler: Connect.NextHandleFunction
+): void {
+  (server.middlewares as Connect.Server).stack.unshift({ route: "", handle: handler });
+}
+
+export { corpHeaders };
