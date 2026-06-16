@@ -52,6 +52,31 @@ Uses **pdf2docx** locally to reconstruct:
 
 ---
 
+## Production Deployment (Vercel + separate converter service)
+
+The frontend (Vite/React) is deployed on **Vercel**.
+
+The Word/PDF conversion logic runs in a separate **Node.js + LibreOffice** microservice (see `services/word-to-pdf/`). This service **cannot** run on Vercel serverless functions (needs LibreOffice binary and longer execution time).
+
+### Step-by-step production setup
+
+1. **Deploy the conversion service** (choose one):
+   - **Recommended**: Render.com, Fly.io, or Railway (one-click Docker deploy)
+   - Use the provided `services/word-to-pdf/Dockerfile` and `docker-compose.yml`
+   - After deploy you will get a public URL, e.g. `https://pdf-palette-converter.onrender.com`
+
+2. **On your Vercel frontend project**, add an Environment Variable:
+   - Name: `VITE_CONVERSION_PREFIX`
+   - Value: the **full public base URL** of the service you just deployed (no trailing slash)
+     Example: `https://pdf-palette-converter.onrender.com`
+   - Redeploy the frontend on Vercel.
+
+3. The app will now call your converter directly (no more 405/ network errors).
+
+> **Important**: The old internal prefix `/_/word-to-pdf` is no longer used as fallback. You **must** set `VITE_CONVERSION_PREFIX` for production Word → PDF (and other conversion tools) to work.
+
+---
+
 ## Quick reference
 
 | Step | Command |
