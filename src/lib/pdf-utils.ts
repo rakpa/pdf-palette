@@ -152,12 +152,58 @@ export async function rotatePDF(
   }
 }
 
-// Compress PDF in-browser via Ghostscript WASM (no external API).
+// Try the iLovePDF service first (best results). Returns null when it isn't
+// available (local dev, keys not set, errors) so the caller falls back to
+// in-browser Ghostscript compression. CompressionLevel maps 1:1 to iLovePDF's
+// compression_level (low | recommended | extreme).
+async function compressViaILovePDF(
+  file: File,
+  level: CompressionLevel,
+  onProgress?: (progress: number) => void
+): Promise<ProcessingResult | null> {
+  try {
+    onProgress?.(15);
+    const resp = await fetch(`/api/compress?level=${level}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/pdf" },
+      body: await file.arrayBuffer(),
+    });
+
+    const contentType = resp.headers.get("content-type") || "";
+    // Anything that isn't a real PDF response (404/501 in dev, HTML, errors) → fall back.
+    if (!resp.ok || !contentType.includes("application/pdf")) return null;
+
+    const blob = await resp.blob();
+    onProgress?.(100);
+
+    // Only keep the API result if it actually shrank the file.
+    if (blob.size >= file.size) return null;
+
+    const reductionPct = ((file.size - blob.size) / file.size) * 100;
+    return {
+      success: true,
+      message: `Compressed! Reduced by ${reductionPct.toFixed(1)}% (${formatFileSize(
+        file.size
+      )} → ${formatFileSize(blob.size)})`,
+      blob,
+      filename: `compressed_${file.name}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Compress PDF — uses the iLovePDF service when configured, otherwise compresses
+// in-browser via Ghostscript WASM. Never returns something larger than the original.
 export async function compressPDF(
   file: File,
   level: CompressionLevel = "recommended",
   onProgress?: (progress: number) => void
 ): Promise<ProcessingResult> {
+  // Prefer iLovePDF; fall back to local Ghostscript compression.
+  const apiResult = await compressViaILovePDF(file, level, onProgress);
+  if (apiResult) return apiResult;
+
   try {
     const { blob, inputSize, outputSize } = await compressWithGhostscript(
       file,

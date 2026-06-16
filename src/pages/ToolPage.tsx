@@ -86,7 +86,7 @@ const featureConfig: Record<
     maxFiles: 1,
     minFiles: 1,
     cta: "Compress PDF",
-    hint: "",
+    hint: "Shrink your PDF with the iLovePDF cloud service. Falls back to in-browser compression if the service is unavailable.",
   },
   watermark: {
     accept: { "application/pdf": [".pdf"] },
@@ -695,18 +695,30 @@ const ConversionServiceStatus = ({
   );
 };
 
-const PrivacyNote = ({ feature }: { feature?: ToolFeature }) => (
-  <div className="flex items-center justify-center gap-2 pt-1 text-xs text-muted-foreground">
-    <ShieldCheck className="h-4 w-4 text-tool-green" />
-    {feature === "word-to-pdf" ||
+const PrivacyNote = ({ feature }: { feature?: ToolFeature }) => {
+  let message: string;
+  if (feature === "compress") {
+    message =
+      "Compression uses the iLovePDF cloud service; your file is sent securely for processing.";
+  } else if (
+    feature === "word-to-pdf" ||
     feature === "pdf-to-word" ||
     feature === "unlock-pdf" ||
     feature === "protect-pdf" ||
     feature === "html-to-pdf"
-      ? "Your file is converted on your machine and deleted immediately after download."
-      : "Your files are processed locally and never uploaded to a server."}
-  </div>
-);
+  ) {
+    message =
+      "Your file is converted on your machine and deleted immediately after download.";
+  } else {
+    message = "Your files are processed locally and never uploaded to a server.";
+  }
+  return (
+    <div className="flex items-center justify-center gap-2 pt-1 text-center text-xs text-muted-foreground">
+      <ShieldCheck className="h-4 w-4 shrink-0 text-tool-green" />
+      {message}
+    </div>
+  );
+};
 
 const ComingSoon = () => (
   <motion.div
