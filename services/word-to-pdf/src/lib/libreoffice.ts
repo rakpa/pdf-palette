@@ -61,43 +61,6 @@ function toFileUrl(dirPath: string): string {
   return `file://${resolved}`;
 }
 
-function buildLibreOfficeEnv(sofficePath: string): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  if (process.platform !== "win32") {
-    return env;
-  }
-
-  const programDir = path.dirname(sofficePath);
-  const installRoot = path.dirname(programDir);
-  const fundamentalIni = path.join(programDir, "fundamental.ini");
-
-  env.PATH = `${programDir};${installRoot};${env.PATH || ""}`;
-  env.UNO_PATH = programDir;
-  env.URE_BOOTSTRAP = `vnd.sun.star.pathname:${fundamentalIni.replace(/\\/g, "/")}`;
-  env.SAL_USE_VCLPLUGIN = env.SAL_USE_VCLPLUGIN || "svp";
-
-  return env;
-}
-
-function killProcessTree(child: ReturnType<typeof spawn>, log: Logger): void {
-  const pid = child.pid;
-  if (!pid) return;
-
-  if (process.platform === "win32") {
-    spawn("taskkill", ["/pid", String(pid), "/t", "/f"], { stdio: "ignore" });
-  } else {
-    try {
-      process.kill(-pid, "SIGKILL");
-    } catch {
-      try {
-        child.kill("SIGKILL");
-      } catch (error) {
-        log.warn({ pid, error }, "failed to kill libreoffice process");
-      }
-    }
-  }
-}
-
 type ConversionOptions = {
   inputPath: string;
   outputDir: string;
@@ -131,44 +94,37 @@ async function runSofficeConversion(options: ConversionOptions): Promise<string>
     args.push(`--infilter=${infilter}`);
   }
 
-  args.push("--convert-to", convertTo, "--outdir", outputDir, inputPath);
+  // HIGH FIDELITY: Use advanced PDF export filter
+  if (convertTo === "pdf") {
+    args.push("--convert-to", "pdf:writer_pdf_Export", "--outdir", outputDir, inputPath);
+  } else {
+    args.push("--convert-to", convertTo, "--outdir", outputDir, inputPath);
+  }
 
-  log.info({ soffice, inputPath, outputDir, convertTo }, "starting libreoffice conversion");
+  log.info({ soffice, inputPath, convertTo }, "starting high-fidelity libreoffice conversion");
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(soffice, args, {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       detached: process.platform !== "win32",
-      env: buildLibreOfficeEnv(soffice),
     });
 
     let stderr = "";
     child.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString();
     });
-    child.stdout?.on("data", (chunk: Buffer) => {
-      log.debug({ stdout: chunk.toString() }, "libreoffice stdout");
-    });
 
     const timer = setTimeout(() => {
-      killProcessTree(child, log);
-      reject(
-        new LibreOfficeError(
-          `Conversion timed out after ${config.CONVERSION_TIMEOUT_MS}ms`,
-          "timeout"
-        )
-      );
+      if (child.pid) {
+        try { process.kill(-child.pid, "SIGKILL"); } catch {}
+      }
+      reject(new LibreOfficeError(`Conversion timed out after ${config.CONVERSION_TIMEOUT_MS}ms`, "timeout"));
     }, config.CONVERSION_TIMEOUT_MS);
 
     child.on("error", (error) => {
       clearTimeout(timer);
-      reject(
-        new LibreOfficeError(
-          `Failed to start LibreOffice: ${error.message}`,
-          "conversion_failed"
-        )
-      );
+      reject(new LibreOfficeError(`Failed to start LibreOffice: ${error.message}`, "conversion_failed"));
     });
 
     child.on("close", (code) => {
@@ -178,18 +134,7 @@ async function runSofficeConversion(options: ConversionOptions): Promise<string>
         return;
       }
       const detail = stderr.trim() || `exit code ${code}`;
-      if (/password|encrypt/i.test(detail)) {
-        reject(
-          new LibreOfficeError(
-            "Document appears to be password-protected or encrypted.",
-            "conversion_failed"
-          )
-        );
-        return;
-      }
-      reject(
-        new LibreOfficeError(`LibreOffice conversion failed: ${detail}`, "conversion_failed")
-      );
+      reject(new LibreOfficeError(`LibreOffice conversion failed: ${detail}`, "conversion_failed"));
     });
   });
 
@@ -200,10 +145,7 @@ async function runSofficeConversion(options: ConversionOptions): Promise<string>
     const files = await fs.readdir(outputDir);
     const match = files.find((f) => f.toLowerCase().endsWith(outputExtension));
     if (match) return path.join(outputDir, match);
-    throw new LibreOfficeError(
-      `LibreOffice did not produce a ${outputExtension} output file.`,
-      "no_output"
-    );
+    throw new LibreOfficeError(`LibreOffice did not produce output file.`, "no_output");
   }
 }
 
@@ -232,7 +174,6 @@ export async function convertPdfToDocx(
   config: AppConfig,
   log: Logger
 ): Promise<string> {
-  // Plain "docx" + writer_pdf_import works on Windows; the quoted filter string fails.
   return runSofficeConversion({
     inputPath,
     outputDir,
