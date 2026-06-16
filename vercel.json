@@ -23,8 +23,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!_/word-to-pdf).*)", "destination": "/index.html" }
   ],
   "experimentalServices": {
     "frontend": {
@@ -35,7 +34,8 @@
     "word-to-pdf": {
       "entrypoint": "services/word-to-pdf/src/index.ts",
       "framework": "express",
-      "routePrefix": "/_/word-to-pdf"
+      "routePrefix": "/_/word-to-pdf",
+      "maxDuration": 300
     }
   }
 }

@@ -60,6 +60,18 @@ function runCompress(gs: GhostscriptModule, buffer: ArrayBuffer, level: Compress
   const inputPath = "/input.pdf";
   const outputPath = "/output.pdf";
 
+  const speedArgs =
+    level === "recommended"
+      ? [
+          "-dColorImageResolution=120",
+          "-dGrayImageResolution=120",
+          "-dMonoImageResolution=150",
+          "-dDownsampleColorImages=true",
+          "-dDownsampleGrayImages=true",
+          "-dDownsampleMonoImages=true",
+        ]
+      : [];
+
   try {
     gs.FS.writeFile(inputPath, new Uint8Array(buffer));
 
@@ -70,6 +82,8 @@ function runCompress(gs: GhostscriptModule, buffer: ArrayBuffer, level: Compress
       "-dDetectDuplicateImages=true",
       "-dCompressFonts=true",
       "-dSubsetFonts=true",
+      "-dAutoRotatePages=/None",
+      ...speedArgs,
       "-dNOPAUSE",
       "-dQUIET",
       "-dBATCH",

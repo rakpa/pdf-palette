@@ -7,6 +7,11 @@ const config = loadConfig();
 const log = createLogger(config);
 const app = createApp(config, log);
 
-app.listen(config.PORT, () => {
-  log.info({ port: config.PORT }, "word-to-pdf API listening");
-});
+// Local dev only — Vercel imports the default export as a serverless handler.
+if (!process.env.VERCEL) {
+  app.listen(config.PORT, () => {
+    log.info({ port: config.PORT }, "word-to-pdf API listening");
+  });
+}
+
+export default app;

@@ -13,9 +13,24 @@ import { createHtmlToPdfRouter } from "./routes/html-to-pdf.js";
 export function createApp(config: AppConfig, log: Logger) {
   const app = express();
 
+  const allowedOrigins = new Set(
+    config.CORS_ORIGIN.split(",")
+      .map((o) => o.trim())
+      .filter(Boolean)
+  );
+  if (process.env.VERCEL_URL) {
+    allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
+  }
+
   app.use(
     cors({
-      origin: config.CORS_ORIGIN.split(",").map((o) => o.trim()),
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.has(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(null, false);
+      },
       methods: ["GET", "POST", "OPTIONS"],
     })
   );

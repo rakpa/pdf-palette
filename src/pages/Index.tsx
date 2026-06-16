@@ -1,8 +1,9 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import ToolsGrid from "@/components/ToolsGrid";
 import Footer from "@/components/Footer";
+import { warmupGhostscript } from "@/lib/ghostscript-compress";
 
 const Features = lazy(() => import("@/components/Features"));
 const HowItWorks = lazy(() => import("@/components/HowItWorks"));
@@ -12,6 +13,13 @@ const BelowFoldFallback = () => (
 );
 
 const Index = () => {
+  // Preload compression engine on homepage so compress feels instant later.
+  useEffect(() => {
+    warmupGhostscript().catch(() => {
+      // Best-effort; compress page retries if needed.
+    });
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
