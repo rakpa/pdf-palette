@@ -72,6 +72,27 @@ type ConversionOptions = {
   infilter?: string;
 };
 
+/**
+ * Build high-fidelity PDF export filter string for writer_pdf_Export.
+ * These options prioritize visual/layout fidelity over file size:
+ * - Lossless image compression (PNG) to preserve colors and detail
+ * - No downsampling of images (keep original resolution)
+ * - Embed standard PDF fonts for consistent rendering
+ * - Preserve exact page count and layout (no skipping empty pages)
+ * - PDF 1.7 for broad compatibility
+ */
+function buildHighFidelityPdfFilter(): string {
+  const filterData = {
+    UseLosslessCompression: { type: "boolean", value: "true" },
+    Quality: { type: "long", value: "100" },
+    ReduceImageResolution: { type: "boolean", value: "false" },
+    EmbedStandardFonts: { type: "boolean", value: "true" },
+    IsSkipEmptyPages: { type: "boolean", value: "false" },
+    SelectPdfVersion: { type: "long", value: "0" },
+  };
+  return `pdf:writer_pdf_Export:${JSON.stringify(filterData)}`;
+}
+
 async function runSofficeConversion(options: ConversionOptions): Promise<string> {
   const { inputPath, outputDir, profileDir, config, log, convertTo, outputExtension, infilter } =
     options;
@@ -94,9 +115,10 @@ async function runSofficeConversion(options: ConversionOptions): Promise<string>
     args.push(`--infilter=${infilter}`);
   }
 
-  // HIGH FIDELITY: Use advanced PDF export filter
   if (convertTo === "pdf") {
-    args.push("--convert-to", "pdf:writer_pdf_Export", "--outdir", outputDir, inputPath);
+    // HIGH FIDELITY: advanced PDF export filter with lossless images, full-res, font embedding
+    const pdfFilter = buildHighFidelityPdfFilter();
+    args.push("--convert-to", pdfFilter, "--outdir", outputDir, inputPath);
   } else {
     args.push("--convert-to", convertTo, "--outdir", outputDir, inputPath);
   }
