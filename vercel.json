@@ -28,11 +28,13 @@
   ],
   "experimentalServices": {
     "frontend": {
+      "entrypoint": ".",
       "routePrefix": "/",
       "framework": "vite"
     },
     "word-to-pdf": {
-      "root": "services/word-to-pdf",
+      "entrypoint": "services/word-to-pdf/src/index.ts",
+      "framework": "express",
       "routePrefix": "/_/word-to-pdf"
     }
   }
