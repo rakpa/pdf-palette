@@ -1,3 +1,5 @@
+import { conversionServiceUrl } from "./runtime-config";
+
 export type ConversionHealth = {
   status: "ok" | "degraded" | "unavailable";
   checks?: {
@@ -35,7 +37,7 @@ export function parseConversionFetchError(error: unknown): string {
 
 export async function checkConversionHealth(): Promise<ConversionHealth> {
   try {
-    const res = await fetch("/api/conversion/health", {
+    const res = await fetch(conversionServiceUrl("/api/conversion/health", "/health"), {
       method: "GET",
       signal: AbortSignal.timeout(5000),
     });

@@ -1,4 +1,5 @@
 import { parseConversionFetchError } from "./conversion-service-client";
+import { conversionServiceUrl } from "./runtime-config";
 
 function filenameFromDisposition(header: string | null): string | null {
   if (!header) return null;
@@ -27,10 +28,13 @@ export async function htmlToPdfLocal(
 
   let res: Response;
   try {
-    res = await fetch("/api/html-to-pdf/convert", {
+    res = await fetch(
+      conversionServiceUrl("/api/html-to-pdf/convert", "/v1/html-to-pdf/convert"),
+      {
       method: "POST",
       body: form,
-    });
+      }
+    );
   } catch (error) {
     throw new Error(parseConversionFetchError(error));
   }

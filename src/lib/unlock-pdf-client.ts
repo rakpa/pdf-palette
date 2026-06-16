@@ -1,4 +1,5 @@
 import { parseConversionFetchError } from "./conversion-service-client";
+import { conversionServiceUrl } from "./runtime-config";
 
 function filenameFromDisposition(header: string | null): string | null {
   if (!header) return null;
@@ -24,10 +25,13 @@ export async function unlockPdfLocal(
 
   let res: Response;
   try {
-    res = await fetch("/api/unlock-pdf/convert", {
+    res = await fetch(
+      conversionServiceUrl("/api/unlock-pdf/convert", "/v1/unlock-pdf/convert"),
+      {
       method: "POST",
       body: form,
-    });
+      }
+    );
   } catch (error) {
     throw new Error(parseConversionFetchError(error));
   }

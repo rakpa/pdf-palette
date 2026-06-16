@@ -1,4 +1,5 @@
 import { parseConversionFetchError } from "./conversion-service-client";
+import { conversionServiceUrl } from "./runtime-config";
 
 function filenameFromDisposition(header: string | null): string | null {
   if (!header) return null;
@@ -24,10 +25,13 @@ export async function protectPdfLocal(
 
   let res: Response;
   try {
-    res = await fetch("/api/protect-pdf/convert", {
+    res = await fetch(
+      conversionServiceUrl("/api/protect-pdf/convert", "/v1/protect-pdf/convert"),
+      {
       method: "POST",
       body: form,
-    });
+      }
+    );
   } catch (error) {
     throw new Error(parseConversionFetchError(error));
   }
